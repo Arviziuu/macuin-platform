@@ -1,0 +1,87 @@
+version: "3.8"
+
+services:
+  # ====== BASE DE DATOS - Puerto 5432 ======
+  db:
+    image: postgres:16-alpine
+    container_name: macuin-db
+    environment:
+      POSTGRES_USER: macuin_user
+      POSTGRES_PASSWORD: macuin_secret_2024
+      POSTGRES_DB: macuin_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U macuin_user -d macuin_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - macuin-net
+
+  # ====== API CENTRAL (FastAPI) - Puerto 8000 ======
+  api-fastapi:
+    build:
+      context: ./api-fastapi
+      dockerfile: Dockerfile
+    container_name: macuin-api
+    environment:
+      DATABASE_URL: postgresql://macuin_user:macuin_secret_2024@db:5432/macuin_db
+      SECRET_KEY: macuin-super-secret-key-change-in-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: "480"
+      ALGORITHM: HS256
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - macuin-net
+
+  # ====== WEB CLIENTES EXTERNOS (Laravel) - Puerto 8080 ======
+  web-clientes:
+    build:
+      context: ./web-clientes-laravel
+      dockerfile: Dockerfile
+    container_name: macuin-web-clientes
+    environment:
+      APP_NAME: MACUIN-Clientes
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: base64:k8BHwgFJMPkdQzWHZvVpG0K9yFmRqSbNwL4nE8xJq2s=
+      APP_URL: http://localhost:8080
+      API_BASE_URL: http://api-fastapi:8000/api/v1
+      SESSION_DRIVER: file
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api-fastapi
+    networks:
+      - macuin-net
+
+  # ====== WEB PERSONAL INTERNO (Flask) - Puerto 5000 ======
+  web-interno:
+    build:
+      context: ./web-interno-flask
+      dockerfile: Dockerfile
+    container_name: macuin-web-interno
+    environment:
+      FLASK_SECRET_KEY: flask-macuin-secret-key
+      FLASK_API_BASE_URL: http://api-fastapi:8000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - api-fastapi
+    networks:
+      - macuin-net
+
+volumes:
+  pgdata:
+
+networks:
+  macuin-net:
+    driver: bridge

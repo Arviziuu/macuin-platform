@@ -1,0 +1,31 @@
+{% extends "layouts/base.html" %}{% block title %}Dashboard - MACUIN{% endblock %}
+{% block content %}
+<div class="page-header"><h4>Dashboard <span class="fw-normal text-muted" style="font-size:.9rem">Bienvenido, {{ user.nombre if user else '' }}</span></h4></div>
+<div class="row g-4 mb-4">
+    <div class="col-md-3"><div class="card stat-card p-3"><div class="d-flex align-items-center gap-3">
+        <div class="icon-box" style="background:#dcfce7;color:#16a34a"><i class="bi bi-currency-dollar"></i></div>
+        <div><div class="text-muted small">Total Ventas</div><div class="fs-5 fw-bold">${{ "%.2f"|format(reporte.total_ventas|default(0)) }}</div></div></div></div></div>
+    <div class="col-md-3"><div class="card stat-card p-3"><div class="d-flex align-items-center gap-3">
+        <div class="icon-box" style="background:#dbeafe;color:#2563eb"><i class="bi bi-cart-check"></i></div>
+        <div><div class="text-muted small">Total Pedidos</div><div class="fs-5 fw-bold">{{ reporte.total_pedidos|default(0) }}</div></div></div></div></div>
+    <div class="col-md-3"><div class="card stat-card p-3"><div class="d-flex align-items-center gap-3">
+        <div class="icon-box" style="background:#fef3c7;color:#d97706"><i class="bi bi-exclamation-triangle"></i></div>
+        <div><div class="text-muted small">Stock Bajo</div><div class="fs-5 fw-bold">{{ reporte.productos_stock_bajo|default([])|length }}</div></div></div></div></div>
+    <div class="col-md-3"><div class="card stat-card p-3"><div class="d-flex align-items-center gap-3">
+        <div class="icon-box" style="background:#ede9fe;color:#7c3aed"><i class="bi bi-people"></i></div>
+        <div><div class="text-muted small">Clientes Activos</div><div class="fs-5 fw-bold">{{ reporte.clientes_top|default([])|length }}</div></div></div></div></div>
+</div>
+<div class="row g-4">
+    <div class="col-md-7"><div class="card p-4"><h6 class="fw-bold mb-3"><i class="bi bi-clock-history text-primary"></i> Pedidos Recientes</h6>
+        <table class="table table-sm table-hover mb-0"><thead><tr><th>Folio</th><th>Cliente</th><th>Total</th><th>Estatus</th></tr></thead><tbody>
+        {% for p in pedidos_recientes %}<tr>
+            <td><a href="{{ url_for('pedidos.detalle', id=p.id) }}" class="fw-500 text-decoration-none">{{ p.folio }}</a></td>
+            <td>{{ p.cliente.razon_social if p.cliente else '-' }}</td><td>${{ "%.2f"|format(p.total|float) }}</td>
+            <td><span class="badge badge-{{ p.estatus }}">{{ p.estatus|upper }}</span></td>
+        </tr>{% endfor %}</tbody></table></div></div>
+    <div class="col-md-5"><div class="card p-4"><h6 class="fw-bold mb-3"><i class="bi bi-pie-chart text-primary"></i> Por Estatus</h6>
+        {% for est, cnt in (reporte.pedidos_por_estatus or {}).items() %}
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom"><span class="badge badge-{{ est }}">{{ est|upper }}</span><strong>{{ cnt }}</strong></div>
+        {% endfor %}</div></div>
+</div>
+{% endblock %}

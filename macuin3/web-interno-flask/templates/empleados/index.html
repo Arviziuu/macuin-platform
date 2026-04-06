@@ -1,0 +1,13 @@
+{% extends "layouts/base.html" %}{% block title %}Empleados{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center"><h4>Empleados</h4>
+<a href="{{ url_for('empleados.crear') }}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Nuevo Empleado</a></div>
+<div class="card"><table class="table table-hover mb-0"><thead><tr><th>No. Emp</th><th>Nombre</th><th>Email</th><th>Depto</th><th>Puesto</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+{% for e in empleados %}<tr>
+<td><code>{{ e.numero_empleado }}</code></td><td class="fw-500">{{ e.nombre }} {{ e.apellido }}</td><td>{{ e.email }}</td>
+<td>{{ e.departamento or '-' }}</td><td>{{ e.puesto or '-' }}</td>
+<td>{% if e.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</td>
+<td><a href="{{ url_for('empleados.editar', id=e.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+<form method="POST" action="{{ url_for('empleados.eliminar', id=e.id) }}" class="d-inline" onsubmit="return confirm('¿Desactivar?')">
+<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

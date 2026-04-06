@@ -1,0 +1,34 @@
+{% extends "layouts/base.html" %}{% block title %}Pedido {{ pedido.folio }}{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center"><h4>{{ pedido.folio }}</h4>
+<a href="{{ url_for('pedidos.index') }}" class="btn btn-outline-secondary btn-sm">Volver</a></div>
+<div class="row g-4">
+<div class="col-md-8">
+<div class="card p-4 mb-3"><div class="row">
+<div class="col-6"><span class="text-muted small">Folio</span><br><strong>{{ pedido.folio }}</strong></div>
+<div class="col-6"><span class="text-muted small">Estatus</span><br><span class="badge badge-{{ pedido.estatus }}">{{ pedido.estatus|upper }}</span></div>
+<div class="col-6 mt-3"><span class="text-muted small">Cliente</span><br><strong>{{ pedido.cliente.razon_social if pedido.cliente else '-' }}</strong></div>
+<div class="col-6 mt-3"><span class="text-muted small">Fecha</span><br><strong>{{ pedido.created_at[:10] if pedido.created_at else '-' }}</strong></div></div></div>
+<div class="card p-4 mb-3"><h6 class="fw-bold mb-3">Productos</h6>
+<table class="table table-sm mb-0"><thead><tr><th>SKU</th><th>Producto</th><th>Cant.</th><th>P.Unit.</th><th>Subtotal</th></tr></thead><tbody>
+{% for d in pedido.detalles or [] %}<tr><td><code>{{ d.autoparte_sku }}</code></td><td>{{ d.autoparte_nombre }}</td>
+<td>{{ d.cantidad }}</td><td>${{ "%.2f"|format(d.precio_unitario|float) }}</td><td>${{ "%.2f"|format(d.subtotal|float) }}</td></tr>{% endfor %}
+</tbody><tfoot><tr><td colspan="4" class="text-end">Subtotal:</td><td>${{ "%.2f"|format(pedido.subtotal|float) }}</td></tr>
+<tr><td colspan="4" class="text-end">IVA 16%:</td><td>${{ "%.2f"|format(pedido.impuesto|float) }}</td></tr>
+<tr><td colspan="4" class="text-end fw-bold">Total:</td><td class="fw-bold">${{ "%.2f"|format(pedido.total|float) }}</td></tr></tfoot></table></div>
+<div class="card p-4"><h6 class="fw-bold mb-3">Historial</h6>
+{% for h in pedido.historial or [] %}<div class="border-start border-3 ps-3 mb-3" style="border-color:#3b82f6!important">
+<strong class="badge badge-{{ h.estatus_nuevo }}">{{ h.estatus_nuevo|upper }}</strong>
+{% if h.estatus_anterior %}<small class="text-muted ms-1">desde {{ h.estatus_anterior }}</small>{% endif %}
+<br><small class="text-muted">{{ h.created_at[:16] if h.created_at else '' }} — {{ h.usuario_nombre or 'Sistema' }}</small>
+{% if h.comentario %}<br><small>{{ h.comentario }}</small>{% endif %}</div>{% endfor %}</div></div>
+<div class="col-md-4">{% if pedido.estatus not in ['entregado','cancelado'] %}
+<div class="card p-4"><h6 class="fw-bold mb-3">Cambiar Estatus</h6>
+<form method="POST" action="{{ url_for('pedidos.cambiar_estatus', id=pedido.id) }}">
+<div class="mb-3"><select name="estatus" class="form-select" required><option value="">-- Seleccionar --</option>
+{% if pedido.estatus=='recibido' %}<option value="en_proceso">En Proceso</option><option value="cancelado">Cancelado</option>
+{% elif pedido.estatus=='en_proceso' %}<option value="enviado">Enviado</option><option value="cancelado">Cancelado</option>
+{% elif pedido.estatus=='enviado' %}<option value="entregado">Entregado</option>{% endif %}</select></div>
+<div class="mb-3"><textarea name="comentario" class="form-control" rows="2" placeholder="Comentario..."></textarea></div>
+<button type="submit" class="btn btn-primary w-100">Actualizar</button></form></div>{% endif %}</div></div>
+{% endblock %}

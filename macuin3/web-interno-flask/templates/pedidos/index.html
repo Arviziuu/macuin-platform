@@ -1,0 +1,13 @@
+{% extends "layouts/base.html" %}{% block title %}Pedidos{% endblock %}
+{% block content %}
+<div class="page-header"><h4>Pedidos</h4></div>
+<div class="card p-3 mb-3"><form method="GET" class="row g-2">
+<div class="col-md-4"><select name="estatus" class="form-select"><option value="">Todos</option>
+{% for e in ['recibido','en_proceso','enviado','entregado','cancelado'] %}<option value="{{ e }}" {% if estatus_filtro==e %}selected{% endif %}>{{ e|upper }}</option>{% endfor %}</select></div>
+<div class="col-md-2"><button class="btn btn-primary w-100">Filtrar</button></div></form></div>
+<div class="card"><table class="table table-hover mb-0"><thead><tr><th>Folio</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Estatus</th><th></th></tr></thead><tbody>
+{% for p in pedidos %}<tr><td class="fw-500">{{ p.folio }}</td><td>{{ p.cliente.razon_social if p.cliente else '-' }}</td>
+<td>{{ p.created_at[:10] if p.created_at else '-' }}</td><td>${{ "%.2f"|format(p.total|float) }}</td>
+<td><span class="badge badge-{{ p.estatus }}">{{ p.estatus|upper }}</span></td>
+<td><a href="{{ url_for('pedidos.detalle', id=p.id) }}" class="btn btn-sm btn-outline-primary">Ver</a></td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

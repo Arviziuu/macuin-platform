@@ -1,0 +1,20 @@
+{% extends "layouts/base.html" %}{% block title %}Autopartes{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center"><h4>Autopartes</h4>
+<a href="{{ url_for('autopartes.crear') }}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Nueva</a></div>
+<div class="card p-3 mb-3"><form method="GET" class="row g-2">
+<div class="col-md-5"><input type="text" name="search" class="form-control" placeholder="Buscar..." value="{{ search }}"></div>
+<div class="col-md-4"><select name="categoria_id" class="form-select"><option value="">Todas las categorías</option>
+{% for c in categorias %}<option value="{{ c.id }}" {% if cat_id|string==c.id|string %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}</select></div>
+<div class="col-md-3"><button class="btn btn-primary w-100"><i class="bi bi-search"></i> Filtrar</button></div></form></div>
+<div class="card"><table class="table table-hover mb-0"><thead><tr><th>SKU</th><th>Nombre</th><th>Marca</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+{% for a in autopartes %}<tr>
+<td><code>{{ a.sku }}</code></td><td class="fw-500">{{ a.nombre }}</td><td>{{ a.marca or '-' }}</td><td>{{ a.categoria_nombre or '-' }}</td>
+<td>${{ "%.2f"|format(a.precio|float) }}</td>
+<td>{% if a.stock_actual <= a.stock_minimo %}<span class="text-danger fw-bold">{{ a.stock_actual }} ⚠</span>{% else %}{{ a.stock_actual }}{% endif %}</td>
+<td>{% if a.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</td>
+<td><a href="{{ url_for('autopartes.editar', id=a.id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+<form method="POST" action="{{ url_for('autopartes.eliminar', id=a.id) }}" class="d-inline" onsubmit="return confirm('¿Desactivar?')">
+<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td>
+</tr>{% endfor %}</tbody></table></div>
+{% endblock %}

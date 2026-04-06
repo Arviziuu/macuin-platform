@@ -1,0 +1,25 @@
+{% extends "layouts/base.html" %}{% block title %}Reportes{% endblock %}
+{% block content %}
+<div class="page-header"><h4>Reportes</h4></div>
+<div class="row g-4 mb-4">
+<div class="col-md-4"><div class="card stat-card p-3"><div class="d-flex align-items-center gap-3">
+<div class="icon-box" style="background:#dcfce7;color:#16a34a"><i class="bi bi-currency-dollar"></i></div>
+<div><div class="text-muted small">Ventas Totales</div><div class="fs-5 fw-bold">${{ "%.2f"|format(reporte.total_ventas|default(0)) }}</div></div></div></div></div>
+<div class="col-md-4"><div class="card stat-card p-3"><div class="d-flex align-items-center gap-3">
+<div class="icon-box" style="background:#dbeafe;color:#2563eb"><i class="bi bi-receipt"></i></div>
+<div><div class="text-muted small">Total Pedidos</div><div class="fs-5 fw-bold">{{ reporte.total_pedidos|default(0) }}</div></div></div></div></div>
+</div>
+<div class="row g-4 mb-4"><div class="col-md-6"><div class="card p-4"><h6 class="fw-bold mb-3">Pedidos por Estatus</h6>
+<table class="table table-sm mb-0"><tbody>{% for est,cnt in (reporte.pedidos_por_estatus or {}).items() %}
+<tr><td><span class="badge badge-{{ est }}">{{ est|upper }}</span></td><td class="text-end fw-bold">{{ cnt }}</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="col-md-6"><div class="card p-4"><h6 class="fw-bold mb-3">Top Clientes</h6>
+<table class="table table-sm mb-0"><thead><tr><th>Cliente</th><th>Pedidos</th><th>Monto</th></tr></thead><tbody>
+{% for c in reporte.clientes_top or [] %}<tr><td>{{ c.razon_social or '-' }}</td><td>{{ c.total_pedidos }}</td><td>${{ "%.2f"|format(c.monto_total) }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+<div class="row g-4"><div class="col-md-6"><div class="card p-4"><h6 class="fw-bold mb-3">Más Vendidos</h6>
+<table class="table table-sm mb-0"><thead><tr><th>SKU</th><th>Nombre</th><th>Vendidos</th></tr></thead><tbody>
+{% for p in reporte.productos_top or [] %}<tr><td><code>{{ p.sku }}</code></td><td>{{ p.nombre }}</td><td class="fw-bold">{{ p.total_vendido }}</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="col-md-6"><div class="card p-4"><h6 class="fw-bold mb-3"><i class="bi bi-exclamation-triangle text-warning"></i> Stock Bajo</h6>
+<table class="table table-sm mb-0"><thead><tr><th>SKU</th><th>Nombre</th><th>Stock</th><th>Mín</th></tr></thead><tbody>
+{% for p in reporte.productos_stock_bajo or [] %}<tr class="table-warning"><td><code>{{ p.sku }}</code></td><td>{{ p.nombre }}</td>
+<td class="text-danger fw-bold">{{ p.stock_actual }}</td><td>{{ p.stock_minimo }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+{% endblock %}

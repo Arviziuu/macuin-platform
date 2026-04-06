@@ -1,0 +1,17 @@
+{% extends "layouts/base.html" %}{% block title %}Inventario{% endblock %}
+{% block content %}
+<div class="page-header"><h4>Inventario</h4></div>
+<div class="card"><table class="table table-hover mb-0"><thead><tr><th>SKU</th><th>Producto</th><th>Stock</th><th>Mínimo</th><th>Ubicación</th><th>Ajustar</th></tr></thead><tbody>
+{% for i in items %}<tr class="{% if i.stock_actual <= i.stock_minimo %}table-warning{% endif %}">
+<td><code>{{ i.autoparte_sku }}</code></td><td>{{ i.autoparte_nombre }}</td><td><strong>{{ i.stock_actual }}</strong></td>
+<td>{{ i.stock_minimo }}</td><td>{{ i.ubicacion_almacen or '-' }}</td>
+<td><button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#m-{{ i.autoparte_id }}"><i class="bi bi-arrow-repeat"></i></button>
+<div class="modal fade" id="m-{{ i.autoparte_id }}" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+<form method="POST" action="{{ url_for('inventario.actualizar', autoparte_id=i.autoparte_id) }}"><div class="modal-header"><h6 class="modal-title">{{ i.autoparte_nombre }}</h6>
+<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+<div class="mb-2"><label class="form-label small">Tipo</label><select name="tipo" class="form-select" required>
+<option value="entrada">Entrada</option><option value="salida">Salida</option><option value="ajuste">Ajuste</option></select></div>
+<div class="mb-2"><label class="form-label small">Cantidad</label><input type="number" name="cantidad" class="form-control" min="0" required></div>
+<div class="mb-2"><label class="form-label small">Motivo</label><input type="text" name="motivo" class="form-control"></div>
+</div><div class="modal-footer"><button type="submit" class="btn btn-primary">Aplicar</button></div></form></div></div></div></td></tr>{% endfor %}
+</tbody></table></div>{% endblock %}
