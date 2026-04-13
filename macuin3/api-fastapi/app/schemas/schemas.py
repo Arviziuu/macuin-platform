@@ -33,7 +33,6 @@ class AutoparteCreate(BaseModel):
     categoria_id: Optional[int] = None
     precio: Decimal
     compatibilidad_vehicular: Optional[str] = None
-    imagen_url: Optional[str] = None
     activo: bool = True
     stock_inicial: int = 0
     stock_minimo: int = 5

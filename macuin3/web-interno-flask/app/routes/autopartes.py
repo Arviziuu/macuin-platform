@@ -9,6 +9,7 @@ def index():
     t = session["token"]; params = {}
     if request.args.get("search"): params["search"] = request.args["search"]
     if request.args.get("categoria_id"): params["categoria_id"] = request.args["categoria_id"]
+    params["solo_activos"] = "false"
     r = api_get("/autopartes", token=t, params=params); cats = api_get("/categorias", token=t)
     return render_template("autopartes/index.html", autopartes=r.json() if r.status_code == 200 else [],
                            categorias=cats.json() if cats.status_code == 200 else [],
@@ -22,7 +23,7 @@ def crear():
         data = {"sku": request.form["sku"], "nombre": request.form["nombre"], "descripcion": request.form.get("descripcion",""),
                 "marca": request.form.get("marca",""), "categoria_id": int(request.form["categoria_id"]) if request.form.get("categoria_id") else None,
                 "precio": float(request.form["precio"]), "compatibilidad_vehicular": request.form.get("compatibilidad_vehicular",""),
-                "imagen_url": request.form.get("imagen_url",""), "activo": True,
+                "imagen_url": "", "activo": True,
                 "stock_inicial": int(request.form.get("stock_inicial",0)), "stock_minimo": int(request.form.get("stock_minimo",5))}
         r = api_post("/autopartes", token=t, json=data)
         if r.status_code == 200: flash("Autoparte creada.", "success"); return redirect(url_for("autopartes.index"))
@@ -38,7 +39,7 @@ def editar(id):
         data = {"nombre": request.form["nombre"], "descripcion": request.form.get("descripcion",""),
                 "marca": request.form.get("marca",""), "categoria_id": int(request.form["categoria_id"]) if request.form.get("categoria_id") else None,
                 "precio": float(request.form["precio"]), "compatibilidad_vehicular": request.form.get("compatibilidad_vehicular",""),
-                "imagen_url": request.form.get("imagen_url",""), "activo": request.form.get("activo") == "on"}
+                "activo": request.form.get("activo") == "on"}
         r = api_put(f"/autopartes/{id}", token=t, json=data)
         if r.status_code == 200: flash("Actualizada.", "success"); return redirect(url_for("autopartes.index"))
         flash(r.json().get("detail","Error"), "danger")

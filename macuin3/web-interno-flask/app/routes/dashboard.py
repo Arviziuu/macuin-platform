@@ -14,7 +14,7 @@ def login_required(f):
 @login_required
 def index():
     token = session["token"]
-    rep = api_get("/reportes/ventas", token=token)
+    rep = api_get("/interno/reportes/ventas", token=token)
     reporte = rep.json() if rep.status_code == 200 else {}
     ped = api_get("/pedidos", token=token)
     pedidos = ped.json()[:5] if ped.status_code == 200 else []

@@ -5,7 +5,7 @@ from typing import Optional
 from app.core.database import get_db
 from app.core.security import get_current_user, require_roles
 from app.schemas.schemas import PedidoCreate, CambioEstatusRequest
-from app.services.services import create_pedido, get_pedidos, get_pedido, get_pedidos_cliente, cambiar_estatus, cancelar_pedido_cliente, generar_pdf_pedido
+from app.services.services import create_pedido, get_pedidos, get_pedido, get_pedidos_cliente, cambiar_estatus, cancelar_pedido_cliente, generar_pdf_pedido, generar_docx_pedido
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
 
@@ -35,3 +35,10 @@ def pdf(pid: int, db: Session = Depends(get_db), u=Depends(get_current_user)):
     buf = generar_pdf_pedido(db, pid)
     p = get_pedido(db, pid)
     return StreamingResponse(buf, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={p['folio']}.pdf"})
+
+@router.get("/{pid}/docx")
+def docx(pid: int, db: Session = Depends(get_db), u=Depends(get_current_user)):
+    buf = generar_docx_pedido(db, pid)
+    p = get_pedido(db, pid)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                             headers={"Content-Disposition": f"attachment; filename={p['folio']}.docx"})

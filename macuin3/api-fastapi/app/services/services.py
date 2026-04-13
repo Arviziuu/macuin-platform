@@ -57,6 +57,12 @@ def create_categoria(db: Session, data):
     db.add(cat); db.commit(); db.refresh(cat)
     return {"id": cat.id, "nombre": cat.nombre, "descripcion": cat.descripcion, "activo": cat.activo}
 
+def delete_categoria(db: Session, cid: int):
+    cat = db.query(Categoria).filter(Categoria.id == cid).first()
+    if not cat: raise HTTPException(404, "Categoría no encontrada")
+    cat.activo = False; db.commit()
+    return {"message": "Categoría desactivada"}
+
 
 # ===== AUTOPARTES =====
 def _autoparte_dict(db, a):
@@ -88,7 +94,7 @@ def create_autoparte(db: Session, data):
         raise HTTPException(400, "SKU ya existe")
     a = Autoparte(sku=data.sku, nombre=data.nombre, descripcion=data.descripcion, marca=data.marca,
                   categoria_id=data.categoria_id, precio=data.precio, compatibilidad_vehicular=data.compatibilidad_vehicular,
-                  imagen_url=data.imagen_url, activo=data.activo)
+                  imagen_url=getattr(data, "imagen_url", None), activo=data.activo)
     db.add(a); db.flush()
     inv = Inventario(autoparte_id=a.id, stock_actual=data.stock_inicial, stock_minimo=data.stock_minimo)
     db.add(inv); db.commit(); db.refresh(a)
@@ -271,6 +277,43 @@ def _pedido_dict(db, p, details=True):
     return r
 
 
+# ===== DOCX PEDIDO INDIVIDUAL =====
+def generar_docx_pedido(db, pid):
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    p = db.query(Pedido).filter(Pedido.id == pid).first()
+    if not p: raise HTTPException(404, "Pedido no encontrado")
+    doc = Document()
+    doc.add_heading("MACUIN - Autopartes Automotrices", 0)
+    doc.add_heading(f"Pedido: {p.folio}", level=1)
+    doc.add_paragraph(f"Estatus: {p.estatus.upper()}    Fecha: {p.created_at.strftime('%d/%m/%Y %H:%M') if p.created_at else ''}")
+    if p.cliente and p.cliente.usuario:
+        doc.add_paragraph(f"Cliente: {p.cliente.razon_social or ''} — {p.cliente.usuario.nombre} {p.cliente.usuario.apellido}")
+    doc.add_paragraph("")
+    table = doc.add_table(rows=1, cols=5)
+    table.style = "Table Grid"
+    hdrs = table.rows[0].cells
+    for i, h in enumerate(["SKU", "Producto", "Cant.", "P.Unit.", "Subtotal"]):
+        hdrs[i].text = h
+        run = hdrs[i].paragraphs[0].runs[0]
+        run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    for d in p.detalles:
+        row = table.add_row().cells
+        row[0].text = d.autoparte.sku if d.autoparte else ""
+        row[1].text = d.autoparte.nombre if d.autoparte else ""
+        row[2].text = str(d.cantidad)
+        row[3].text = f"${d.precio_unitario:,.2f}"
+        row[4].text = f"${d.subtotal:,.2f}"
+    doc.add_paragraph("")
+    doc.add_paragraph(f"Subtotal: ${p.subtotal:,.2f}")
+    doc.add_paragraph(f"IVA 16%:  ${p.impuesto:,.2f}")
+    t = doc.add_paragraph(f"TOTAL:    ${p.total:,.2f}")
+    t.runs[0].bold = True
+    if p.notas: doc.add_paragraph(f"Notas: {p.notas}")
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0)
+    return buf
+
+
 # ===== REPORTES =====
 def get_reporte_ventas(db):
     tv = db.query(func.sum(Pedido.total)).filter(Pedido.estatus != "cancelado").scalar() or 0
@@ -290,6 +333,228 @@ def get_reporte_ventas(db):
           for inv in db.query(Inventario).filter(Inventario.stock_actual <= Inventario.stock_minimo).all() if inv.autoparte]
     return {"total_ventas": float(tv), "total_pedidos": tp, "pedidos_por_estatus": est,
             "clientes_top": ct, "productos_top": pt, "productos_stock_bajo": sb}
+
+
+def get_reporte_inventario(db):
+    rows = []
+    for inv in db.query(Inventario).all():
+        if inv.autoparte:
+            rows.append({"sku": inv.autoparte.sku, "nombre": inv.autoparte.nombre,
+                         "marca": inv.autoparte.marca, "categoria": inv.autoparte.categoria.nombre if inv.autoparte.categoria else "",
+                         "stock_actual": inv.stock_actual, "stock_minimo": inv.stock_minimo,
+                         "ubicacion": inv.ubicacion_almacen or "",
+                         "estatus": "BAJO" if inv.stock_actual <= inv.stock_minimo else "OK"})
+    return {"total_productos": len(rows), "productos_stock_bajo": sum(1 for r in rows if r["estatus"] == "BAJO"), "detalle": rows}
+
+
+def get_reporte_pedidos(db):
+    pedidos = db.query(Pedido).order_by(desc(Pedido.created_at)).all()
+    rows = []
+    for p in pedidos:
+        c = p.cliente; u = c.usuario if c else None
+        rows.append({"folio": p.folio, "cliente": c.razon_social or (f"{u.nombre} {u.apellido}" if u else ""),
+                     "estatus": p.estatus, "subtotal": float(p.subtotal), "impuesto": float(p.impuesto),
+                     "total": float(p.total), "fecha": p.created_at.strftime("%d/%m/%Y") if p.created_at else ""})
+    return {"total_pedidos": len(rows), "monto_total": sum(r["total"] for r in rows), "detalle": rows}
+
+
+def get_reporte_clientes(db):
+    rows = []
+    for c in db.query(Cliente).all():
+        u = c.usuario
+        pedidos = db.query(Pedido).filter(Pedido.cliente_id == c.id, Pedido.estatus != "cancelado").all()
+        rows.append({"nombre": f"{u.nombre} {u.apellido}" if u else "", "email": u.email if u else "",
+                     "razon_social": c.razon_social or "", "rfc": c.rfc or "", "ciudad": c.ciudad or "",
+                     "estado": c.estado or "", "total_pedidos": len(pedidos),
+                     "monto_total": float(sum(p.total for p in pedidos))})
+    return {"total_clientes": len(rows), "detalle": rows}
+
+
+# ===== GENERADORES PDF REPORTES =====
+def _pdf_table(doc, els, headers, rows_data, col_widths, styles):
+    from reportlab.platypus import Table, TableStyle
+    from reportlab.lib import colors
+    data = [headers] + rows_data
+    t = Table(data, colWidths=col_widths)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0d47a1")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+    ]))
+    els.append(t)
+
+
+def generar_pdf_reporte_ventas(db):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    data = get_reporte_ventas(db)
+    buf = io.BytesIO(); doc = SimpleDocTemplate(buf, pagesize=letter); styles = getSampleStyleSheet(); els = []
+    els.append(Paragraph("MACUIN - Reporte de Ventas", styles["Title"]))
+    els.append(Paragraph(f"Total Ventas: ${data['total_ventas']:,.2f}   |   Total Pedidos: {data['total_pedidos']}", styles["Normal"]))
+    els.append(Spacer(1, 12))
+    els.append(Paragraph("Clientes Top", styles["Heading2"]))
+    _pdf_table(doc, els, ["Razón Social", "Pedidos", "Monto Total"],
+               [[r["razon_social"] or "", str(r["total_pedidos"]), f"${r['monto_total']:,.2f}"] for r in data["clientes_top"]],
+               [200, 80, 100], styles)
+    els.append(Spacer(1, 12))
+    els.append(Paragraph("Productos Más Vendidos", styles["Heading2"]))
+    _pdf_table(doc, els, ["SKU", "Nombre", "Unidades Vendidas"],
+               [[r["sku"], r["nombre"], str(r["total_vendido"])] for r in data["productos_top"]],
+               [80, 240, 100], styles)
+    doc.build(els); buf.seek(0); return buf
+
+
+def generar_pdf_reporte_inventario(db):
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    data = get_reporte_inventario(db)
+    buf = io.BytesIO(); doc = SimpleDocTemplate(buf, pagesize=landscape(letter)); styles = getSampleStyleSheet(); els = []
+    els.append(Paragraph("MACUIN - Reporte de Inventario", styles["Title"]))
+    els.append(Paragraph(f"Total productos: {data['total_productos']}   |   Stock bajo: {data['productos_stock_bajo']}", styles["Normal"]))
+    els.append(Spacer(1, 12))
+    _pdf_table(doc, els, ["SKU", "Nombre", "Marca", "Categoría", "Stock Actual", "Stock Mínimo", "Ubicación", "Estatus"],
+               [[r["sku"], r["nombre"], r["marca"] or "", r["categoria"], str(r["stock_actual"]),
+                 str(r["stock_minimo"]), r["ubicacion"], r["estatus"]] for r in data["detalle"]],
+               [55, 160, 70, 80, 55, 55, 60, 45], styles)
+    doc.build(els); buf.seek(0); return buf
+
+
+def generar_pdf_reporte_pedidos(db):
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    data = get_reporte_pedidos(db)
+    buf = io.BytesIO(); doc = SimpleDocTemplate(buf, pagesize=landscape(letter)); styles = getSampleStyleSheet(); els = []
+    els.append(Paragraph("MACUIN - Reporte de Pedidos", styles["Title"]))
+    els.append(Paragraph(f"Total pedidos: {data['total_pedidos']}   |   Monto total: ${data['monto_total']:,.2f}", styles["Normal"]))
+    els.append(Spacer(1, 12))
+    _pdf_table(doc, els, ["Folio", "Cliente", "Estatus", "Subtotal", "IVA", "Total", "Fecha"],
+               [[r["folio"], r["cliente"], r["estatus"], f"${r['subtotal']:,.2f}",
+                 f"${r['impuesto']:,.2f}", f"${r['total']:,.2f}", r["fecha"]] for r in data["detalle"]],
+               [80, 160, 70, 70, 60, 70, 60], styles)
+    doc.build(els); buf.seek(0); return buf
+
+
+def generar_pdf_reporte_clientes(db):
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    data = get_reporte_clientes(db)
+    buf = io.BytesIO(); doc = SimpleDocTemplate(buf, pagesize=landscape(letter)); styles = getSampleStyleSheet(); els = []
+    els.append(Paragraph("MACUIN - Reporte de Clientes", styles["Title"]))
+    els.append(Paragraph(f"Total clientes: {data['total_clientes']}", styles["Normal"]))
+    els.append(Spacer(1, 12))
+    _pdf_table(doc, els, ["Nombre", "Email", "Razón Social", "RFC", "Ciudad", "Estado", "Pedidos", "Monto Total"],
+               [[r["nombre"], r["email"], r["razon_social"], r["rfc"], r["ciudad"],
+                 r["estado"], str(r["total_pedidos"]), f"${r['monto_total']:,.2f}"] for r in data["detalle"]],
+               [90, 120, 110, 80, 70, 70, 50, 80], styles)
+    doc.build(els); buf.seek(0); return buf
+
+
+# ===== GENERADORES XLSX REPORTES =====
+def _generar_xlsx(titulo, headers, rows):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    wb = openpyxl.Workbook(); ws = wb.active; ws.title = titulo
+    ws.append([titulo]); ws["A1"].font = Font(bold=True, size=14)
+    ws.append([])
+    ws.append(headers)
+    header_fill = PatternFill("solid", fgColor="0D47A1")
+    for cell in ws[3]:
+        cell.font = Font(bold=True, color="FFFFFF"); cell.fill = header_fill; cell.alignment = Alignment(horizontal="center")
+    for row in rows:
+        ws.append(row)
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = max(len(str(c.value or "")) for c in col) + 4
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0); return buf
+
+
+def generar_xlsx_reporte_ventas(db):
+    data = get_reporte_ventas(db)
+    return _generar_xlsx("Reporte de Ventas",
+        ["Razón Social", "Total Pedidos", "Monto Total"],
+        [[r["razon_social"] or "", r["total_pedidos"], r["monto_total"]] for r in data["clientes_top"]])
+
+
+def generar_xlsx_reporte_inventario(db):
+    data = get_reporte_inventario(db)
+    return _generar_xlsx("Reporte de Inventario",
+        ["SKU", "Nombre", "Marca", "Categoría", "Stock Actual", "Stock Mínimo", "Ubicación", "Estatus"],
+        [[r["sku"], r["nombre"], r["marca"], r["categoria"], r["stock_actual"], r["stock_minimo"], r["ubicacion"], r["estatus"]]
+         for r in data["detalle"]])
+
+
+def generar_xlsx_reporte_pedidos(db):
+    data = get_reporte_pedidos(db)
+    return _generar_xlsx("Reporte de Pedidos",
+        ["Folio", "Cliente", "Estatus", "Subtotal", "IVA", "Total", "Fecha"],
+        [[r["folio"], r["cliente"], r["estatus"], r["subtotal"], r["impuesto"], r["total"], r["fecha"]]
+         for r in data["detalle"]])
+
+
+def generar_xlsx_reporte_clientes(db):
+    data = get_reporte_clientes(db)
+    return _generar_xlsx("Reporte de Clientes",
+        ["Nombre", "Email", "Razón Social", "RFC", "Ciudad", "Estado", "Total Pedidos", "Monto Total"],
+        [[r["nombre"], r["email"], r["razon_social"], r["rfc"], r["ciudad"], r["estado"], r["total_pedidos"], r["monto_total"]]
+         for r in data["detalle"]])
+
+
+# ===== GENERADORES DOCX REPORTES =====
+def _generar_docx(titulo, headers, rows):
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    doc = Document()
+    doc.add_heading(titulo, 0)
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Table Grid"
+    hdr = table.rows[0].cells
+    for i, h in enumerate(headers):
+        hdr[i].text = h
+        run = hdr[i].paragraphs[0].runs[0]
+        run.bold = True; run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        hdr[i].paragraphs[0].paragraph_format.alignment = 1
+    for row in rows:
+        cells = table.add_row().cells
+        for i, val in enumerate(row):
+            cells[i].text = str(val)
+    buf = io.BytesIO(); doc.save(buf); buf.seek(0); return buf
+
+
+def generar_docx_reporte_ventas(db):
+    data = get_reporte_ventas(db)
+    return _generar_docx(f"Reporte de Ventas — Total: ${data['total_ventas']:,.2f}",
+        ["Razón Social", "Total Pedidos", "Monto Total"],
+        [[r["razon_social"] or "", r["total_pedidos"], f"${r['monto_total']:,.2f}"] for r in data["clientes_top"]])
+
+
+def generar_docx_reporte_inventario(db):
+    data = get_reporte_inventario(db)
+    return _generar_docx(f"Reporte de Inventario — {data['total_productos']} productos",
+        ["SKU", "Nombre", "Marca", "Categoría", "Stock Actual", "Stock Mínimo", "Ubicación", "Estatus"],
+        [[r["sku"], r["nombre"], r["marca"], r["categoria"], r["stock_actual"], r["stock_minimo"], r["ubicacion"], r["estatus"]]
+         for r in data["detalle"]])
+
+
+def generar_docx_reporte_pedidos(db):
+    data = get_reporte_pedidos(db)
+    return _generar_docx(f"Reporte de Pedidos — Total: ${data['monto_total']:,.2f}",
+        ["Folio", "Cliente", "Estatus", "Subtotal", "IVA", "Total", "Fecha"],
+        [[r["folio"], r["cliente"], r["estatus"], f"${r['subtotal']:,.2f}", f"${r['impuesto']:,.2f}", f"${r['total']:,.2f}", r["fecha"]]
+         for r in data["detalle"]])
+
+
+def generar_docx_reporte_clientes(db):
+    data = get_reporte_clientes(db)
+    return _generar_docx(f"Reporte de Clientes — {data['total_clientes']} clientes",
+        ["Nombre", "Email", "Razón Social", "RFC", "Ciudad", "Estado", "Total Pedidos", "Monto Total"],
+        [[r["nombre"], r["email"], r["razon_social"], r["rfc"], r["ciudad"], r["estado"], r["total_pedidos"], f"${r['monto_total']:,.2f}"]
+         for r in data["detalle"]])
 
 
 # ===== PDF =====

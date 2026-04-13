@@ -10,8 +10,8 @@ router = APIRouter(prefix="/autopartes", tags=["Autopartes"])
 
 @router.get("")
 def listar(search: Optional[str] = Query(None), categoria_id: Optional[int] = Query(None),
-           marca: Optional[str] = Query(None), db: Session = Depends(get_db)):
-    return get_autopartes(db, search=search, categoria_id=categoria_id, marca=marca)
+           marca: Optional[str] = Query(None), solo_activos: Optional[bool] = Query(True), db: Session = Depends(get_db)):
+    return get_autopartes(db, search=search, categoria_id=categoria_id, marca=marca, solo_activos=solo_activos)
 
 @router.get("/{aid}")
 def detalle(aid: int, db: Session = Depends(get_db)):

@@ -2,7 +2,9 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4"><h4 class="fw-bold">{{ $pedido['folio']??'' }}</h4>
 <div class="d-flex gap-2">
-<a href="{{ route('pedidos.pdf',$pedido['id']) }}" class="btn btn-outline-primary btn-sm" style="border-radius:8px"><i class="bi bi-file-earmark-pdf"></i> Descargar PDF</a>
+<a href="{{ route('pedidos.pdf',$pedido['id']) }}" class="btn btn-outline-danger btn-sm" style="border-radius:8px"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+<a href="{{ route('pedidos.excel',$pedido['id']) }}" class="btn btn-outline-success btn-sm" style="border-radius:8px"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+<a href="{{ route('pedidos.docx',$pedido['id']) }}" class="btn btn-outline-primary btn-sm" style="border-radius:8px"><i class="bi bi-file-earmark-word"></i> Word</a>
 @if(($pedido['estatus']??'')==='recibido')<form method="POST" action="{{ route('pedidos.cancel',$pedido['id']) }}" onsubmit="return confirm('¿Cancelar?')">@csrf
 <button class="btn btn-outline-danger btn-sm" style="border-radius:8px"><i class="bi bi-x-circle"></i> Cancelar</button></form>@endif
 <a href="{{ route('pedidos.index') }}" class="btn btn-outline-secondary btn-sm" style="border-radius:8px">Volver</a></div></div>

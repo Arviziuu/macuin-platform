@@ -47,4 +47,41 @@ class PedidoController extends Controller {
             ->header('Content-Disposition', "attachment; filename=pedido-{$id}.pdf");
         return redirect()->route('pedidos.show', $id)->with('error', 'Error al descargar PDF.');
     }
+
+    public function excel(int $id) {
+        $pedido = $this->api->get("/pedidos/{$id}", session('api_token'))->json();
+        if (empty($pedido)) return redirect()->route('pedidos.show', $id)->with('error', 'Pedido no encontrado.');
+
+        // Genera el Excel en PHP con datos del pedido
+        $rows   = [];
+        $rows[] = ['SKU', 'Producto', 'Cantidad', 'Precio Unitario', 'Subtotal'];
+        foreach ($pedido['detalles'] ?? [] as $d) {
+            $rows[] = [
+                $d['autoparte_sku']    ?? '',
+                $d['autoparte_nombre'] ?? '',
+                $d['cantidad'],
+                $d['precio_unitario'],
+                $d['subtotal'],
+            ];
+        }
+        $rows[] = [];
+        $rows[] = ['', '', '', 'Subtotal:', $pedido['subtotal']];
+        $rows[] = ['', '', '', 'IVA 16%:',  $pedido['impuesto']];
+        $rows[] = ['', '', '', 'TOTAL:',    $pedido['total']];
+
+        $folio = $pedido['folio'] ?? "pedido-{$id}";
+        $csv   = collect($rows)->map(fn($r) => implode(',', $r))->implode("\n");
+
+        return response($csv, 200)
+            ->header('Content-Type', 'text/csv')
+            ->header('Content-Disposition', "attachment; filename={$folio}.csv");
+    }
+
+    public function docx(int $id) {
+        $r = $this->api->getRaw("/pedidos/{$id}/docx", session('api_token'));
+        if ($r->successful()) return response($r->body(), 200)
+            ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            ->header('Content-Disposition', "attachment; filename=pedido-{$id}.docx");
+        return redirect()->route('pedidos.show', $id)->with('error', 'Error al descargar Word.');
+    }
 }

@@ -20,4 +20,6 @@ Route::middleware('api.auth')->group(function () {
     Route::get('/pedidos/{id}', [PedidoController::class, 'show'])->name('pedidos.show');
     Route::post('/pedidos/{id}/cancelar', [PedidoController::class, 'cancel'])->name('pedidos.cancel');
     Route::get('/pedidos/{id}/pdf', [PedidoController::class, 'pdf'])->name('pedidos.pdf');
+    Route::get('/pedidos/{id}/excel', [PedidoController::class, 'excel'])->name('pedidos.excel');
+    Route::get('/pedidos/{id}/docx', [PedidoController::class, 'docx'])->name('pedidos.docx');
 });

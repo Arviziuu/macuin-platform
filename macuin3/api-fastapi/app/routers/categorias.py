@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_roles
 from app.schemas.schemas import CategoriaCreate
-from app.services.services import get_categorias, create_categoria
+from app.services.services import get_categorias, create_categoria, delete_categoria
 
 router = APIRouter(prefix="/categorias", tags=["Categorías"])
 
@@ -14,3 +14,7 @@ def listar(db: Session = Depends(get_db)):
 @router.post("")
 def crear(data: CategoriaCreate, db: Session = Depends(get_db), u=Depends(require_roles("admin", "personal_interno"))):
     return create_categoria(db, data)
+
+@router.delete("/{cid}")
+def eliminar(cid: int, db: Session = Depends(get_db), u=Depends(require_roles("admin", "personal_interno"))):
+    return delete_categoria(db, cid)
